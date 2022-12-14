@@ -37,18 +37,18 @@ eventEmitter.on('conversionFailed',(err)=>{
 
 eventEmitter.on('conversionSuccess',(hlsPath)=>{
     console.log(`completed`);
-    let manifest = `
-    #EXTM3U
-    #EXT-X-VERSION:3
-    #EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360
-    360p.m3u8
-    #EXT-X-STREAM-INF:BANDWIDTH=1400000,RESOLUTION=842x480
-    480p.m3u8
-    #EXT-X-STREAM-INF:BANDWIDTH=2800000,RESOLUTION=1280x720
-    720p.m3u8
-    #EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080
-    1080p.m3u8
-    `
+    let manifest = '#EXTM3U'
+    manifest+='\n#EXT-X-VERSION:3'
+    manifest+='\n#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360'
+    manifest+='\n#360p.m3u8'
+    manifest+='\n#EXT-X-STREAM-INF:BANDWIDTH=1400000,RESOLUTION=842x480'
+    manifest+='\n480p.m3u8'
+    manifest+='\n#EXT-X-STREAM-INF:BANDWIDTH=2800000,RESOLUTION=1280x720'
+    manifest+= '720p.m3u8'
+    manifest+= '#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080'
+    manifest+= '1080p.m3u8'
+    manifest+= '#EXTM3U'
+
     fs.writeFileSync(`${hlsPath}/playlist.m3u8`,manifest);
      
 })
@@ -76,7 +76,7 @@ const convertToHLS = (path)=>{
 
         '-vf','scale=640x360','-c:a','aac','-ar','48000','-b:a','128k','-c:v','h264','-profile:v','main',
         '-crf','20','-g','48','-keyint_min','48','-sc_threshold','0','-b:v','2500k','-maxrate','2675k','-bufsize',
-        '3750k','-hls_time','4','-hls_playlist_type','vod','-hls_segment_filename',`${newDir}/360p_%03d.ts`, `${newDir}/360.m3u8`,
+        '3750k','-hls_time','4','-hls_playlist_type','vod','-hls_segment_filename',`${newDir}/360p_%03d.ts`, `${newDir}/360p.m3u8`,
 
     ];
     var proc = spawn(ffmpegCmd, args);
