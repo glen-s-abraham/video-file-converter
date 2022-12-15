@@ -8,6 +8,7 @@ const ffmpegCmd = "ffmpeg";
 const eventEmitter = new EventEmitter();
 
 let amqpChannel;
+let message;
 let VIDEO_PUB_Q = "videopublished";
 amqplib.connect("amqp://admin:password@192.168.5.49:5672", (err, conn) => {
   if (err) throw err;
@@ -20,17 +21,17 @@ amqplib.connect("amqp://admin:password@192.168.5.49:5672", (err, conn) => {
         amqpChannel.assertQueue(VIDEO_PUB_Q);
         amqpChannel.consume(
           VIDEO_PUB_Q,
-          (data) => handleVideoConversion(data.content.toString()),
-          {
-            noAck: true,
-          }
+          (data) =>{
+            message = data;  
+            handleVideoConversion(data.content.toString())
+          } ,
         );
       }
     });
 });
 
 
-eventEmitter.on('conversionFailed',(err)=>{
+eventEmitter.on('conversionFailed',(err,newDir)=>{
     console.log(err);
     //handle by publishing event to rabbitmq and letting use know 
 })
@@ -50,6 +51,7 @@ eventEmitter.on('conversionSuccess',(hlsPath)=>{
     manifest+= '#EXTM3U'
 
     fs.writeFileSync(`${hlsPath}/playlist.m3u8`,manifest);
+    if(message){amqpChannel.ack(message);message=undefined};
      
 })
 
@@ -79,6 +81,7 @@ const convertToHLS = (path)=>{
         '3750k','-hls_time','4','-hls_playlist_type','vod','-hls_segment_filename',`${newDir}/360p_%03d.ts`, `${newDir}/360p.m3u8`,
 
     ];
+    
     var proc = spawn(ffmpegCmd, args);
   
     proc.stdout.on("data", function (data) {
@@ -86,8 +89,8 @@ const convertToHLS = (path)=>{
     });
   
     proc.stderr.setEncoding("utf8");
-    proc.stderr.on("data", function (data) {
-      eventEmitter.emit('conversionFailed',data);
+    proc.stderr.on("data", function (err) {
+      eventEmitter.emit('conversionFailed',err,newDir);
     });
   
     proc.on("close", function () {
