@@ -8,7 +8,7 @@ const ffmpegCmd = "ffmpeg";
 const eventEmitter = new EventEmitter();
 
 let amqpChannel;
-let message;
+let message=undefined;
 let uploadDir;
 
 let VIDEO_PUB_Q = "videopublished";
@@ -40,6 +40,7 @@ eventEmitter.on('conversionFailed',(err,newDir)=>{
     if(fs.existsSync(newDir)){
       fs.rmdir(hlsPath);
     }
+    if(message){amqpChannel.nack(message);message=undefined};
 })
 
 eventEmitter.on('conversionSuccess',(hlsPath)=>{
@@ -99,7 +100,7 @@ const convertToHLS = (path)=>{
     });
     proc.stderr.setEncoding("utf8");
     proc.stderr.on('data', (data) => {
-      console.error(`child stderr:\n${data}`);
+      if(data) console.error(`child stderr:${data}`);
     });
     proc.on('error',(err)=>{
       eventEmitter.emit('conversionFailed',`${newDir}`);
