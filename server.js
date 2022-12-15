@@ -9,6 +9,8 @@ const eventEmitter = new EventEmitter();
 
 let amqpChannel;
 let message;
+let uploadDir;
+
 let VIDEO_PUB_Q = "videopublished";
 amqplib.connect("amqp://admin:password@192.168.5.49:5672", (err, conn) => {
   if (err) throw err;
@@ -19,6 +21,7 @@ amqplib.connect("amqp://admin:password@192.168.5.49:5672", (err, conn) => {
       amqpChannel = ch;
       if (amqpChannel) {
         amqpChannel.assertQueue(VIDEO_PUB_Q);
+        amqpChannel.prefecth(1);
         amqpChannel.consume(
           VIDEO_PUB_Q,
           (data) =>{
@@ -33,7 +36,10 @@ amqplib.connect("amqp://admin:password@192.168.5.49:5672", (err, conn) => {
 
 eventEmitter.on('conversionFailed',(err,newDir)=>{
     console.log(err);
-    //handle by publishing event to rabbitmq and letting use know 
+    //handle by publishing event to rabbitmq and letting use know
+     fs.rmdir(newDir,()=>{
+       console.log('folder deleted');
+     })
 })
 
 eventEmitter.on('conversionSuccess',(hlsPath)=>{
