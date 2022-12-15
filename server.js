@@ -12,7 +12,7 @@ let message;
 let uploadDir;
 
 let VIDEO_PUB_Q = "videopublished";
-amqplib.connect("amqp://admin:password@192.168.5.49:5672", (err, conn) => {
+amqplib.connect("", (err, conn) => {
   if (err) throw err;
   if (!conn) console.log("Not connected to rabbitmq");
   else
@@ -21,7 +21,7 @@ amqplib.connect("amqp://admin:password@192.168.5.49:5672", (err, conn) => {
       amqpChannel = ch;
       if (amqpChannel) {
         amqpChannel.assertQueue(VIDEO_PUB_Q);
-        amqpChannel.prefecth(1);
+        amqpChannel.prefetch(1);
         amqpChannel.consume(
           VIDEO_PUB_Q,
           (data) =>{
@@ -29,6 +29,7 @@ amqplib.connect("amqp://admin:password@192.168.5.49:5672", (err, conn) => {
             handleVideoConversion(data.content.toString())
           } ,
         );
+        console.log('amqpChannel initiated');
       }
     });
 });
@@ -36,14 +37,13 @@ amqplib.connect("amqp://admin:password@192.168.5.49:5672", (err, conn) => {
 
 eventEmitter.on('conversionFailed',(err,newDir)=>{
     console.log(err);
-    //handle by publishing event to rabbitmq and letting use know
-     fs.rmdir(newDir,()=>{
-       console.log('folder deleted');
-     })
+    if(fs.existsSync(newDir)){
+      fs.rmdir(hlsPath);
+    }
 })
 
 eventEmitter.on('conversionSuccess',(hlsPath)=>{
-    console.log(`completed`);
+    console.log(`completed ${hlsPath}`);
     let manifest = '#EXTM3U'
     manifest+='\n#EXT-X-VERSION:3'
     manifest+='\n#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360'
@@ -55,8 +55,9 @@ eventEmitter.on('conversionSuccess',(hlsPath)=>{
     manifest+= '#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080'
     manifest+= '1080p.m3u8'
     manifest+= '#EXTM3U'
-
-    fs.writeFileSync(`${hlsPath}/playlist.m3u8`,manifest);
+    if(fs.existsSync(hlsPath)){
+      fs.writeFileSync(`${hlsPath}/playlist.m3u8`,manifest);
+    }
     if(message){amqpChannel.ack(message);message=undefined};
      
 })
@@ -66,7 +67,10 @@ const convertToHLS = (path)=>{
     const storagePath = path.split("/").slice(0, -1).join("/");
        const n = path.lastIndexOf('.mp4');
        newDir = path.slice(0, n) + path.slice(n).replace('.mp4', '');
-       fs.mkdirSync(newDir);
+       if (!fs.existsSync(newDir)){
+        fs.mkdirSync(newDir);
+        console.log('created Dir');
+       } 
        const args = [
         '-i', path,
 
@@ -93,12 +97,13 @@ const convertToHLS = (path)=>{
     proc.stdout.on("data", function (data) {
       console.log(data);
     });
-  
     proc.stderr.setEncoding("utf8");
-    proc.stderr.on("data", function (err) {
-      eventEmitter.emit('conversionFailed',err,newDir);
+    proc.stderr.on('data', (data) => {
+      console.error(`child stderr:\n${data}`);
     });
-  
+    proc.on('error',(err)=>{
+      eventEmitter.emit('conversionFailed',`${newDir}`);
+    })
     proc.on("close", function () {
         eventEmitter.emit('conversionSuccess',`${newDir}`);
     });
@@ -108,5 +113,10 @@ const convertToHLS = (path)=>{
 //ffmpeg -y -i movie.avi -an -c:v libx264 -x264opts 'keyint=24:min-keyint=24:no-scenecut' -b:v 800k -maxrate 800k -bufsize 1600k -vf "scale=-1:540" movie-540.mp4
 //ffmpeg -y -i movie.avi -an -c:v libx264 -x264opts 'keyint=24:min-keyint=24:no-scenecut' -b:v 400k -maxrate 400k -bufsize 800k -vf "scale=-1:360" movie-360.mp4
 const handleVideoConversion = async (path) => { 
-  convertToHLS(path);
+  try{
+    convertToHLS(path);
+  }catch(err){
+    console.log(err.message);
+  }
+  
 };
