@@ -2,6 +2,7 @@ const amqplib = require("amqplib/callback_api");
 const { spawn } = require("child_process");
 const fs = require('fs');
 const EventEmitter = require('events');
+const {logger} = require('./logger');
 
 const ffmpegCmd = "ffmpeg";
 
@@ -9,10 +10,10 @@ const eventEmitter = new EventEmitter();
 
 let amqpChannel;
 let message=undefined;
-let uploadDir;
+
 
 let VIDEO_PUB_Q = "videopublished";
-amqplib.connect("", (err, conn) => {
+amqplib.connect("amqp://user:CxpDTldcT16sdgyL@5.75.171.25:31203", (err, conn) => {
   if (err) throw err;
   if (!conn) console.log("Not connected to rabbitmq");
   else
@@ -52,13 +53,11 @@ eventEmitter.on('conversionSuccess',(hlsPath)=>{
     manifest+='\n#EXT-X-STREAM-INF:BANDWIDTH=1400000,RESOLUTION=842x480'
     manifest+='\n480p.m3u8'
     manifest+='\n#EXT-X-STREAM-INF:BANDWIDTH=2800000,RESOLUTION=1280x720'
-    manifest+= '720p.m3u8'
-    manifest+= '#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080'
-    manifest+= '1080p.m3u8'
-    manifest+= '#EXTM3U'
-    if(fs.existsSync(hlsPath)){
-      fs.writeFileSync(`${hlsPath}/playlist.m3u8`,manifest);
-    }
+    manifest+= '\n720p.m3u8'
+    manifest+= '\n#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080'
+    manifest+= '\n1080p.m3u8'
+    fs.writeFileSync(`${hlsPath}/playlist.m3u8`,manifest);
+    
     if(message){amqpChannel.ack(message);message=undefined};
      
 })
@@ -96,13 +95,14 @@ const convertToHLS = (path)=>{
     var proc = spawn(ffmpegCmd, args);
   
     proc.stdout.on("data", function (data) {
-      console.log(data);
+      logger.info(data);
     });
     proc.stderr.setEncoding("utf8");
     proc.stderr.on('data', (data) => {
-      if(data) console.error(`child stderr:${data}`);
+      logger.info(data);
     });
     proc.on('error',(err)=>{
+      logger.error(err);
       eventEmitter.emit('conversionFailed',`${newDir}`);
     })
     proc.on("close", function () {
@@ -117,7 +117,7 @@ const handleVideoConversion = async (path) => {
   try{
     convertToHLS(path);
   }catch(err){
-    console.log(err.message);
+    logger.error(err);
   }
   
 };
